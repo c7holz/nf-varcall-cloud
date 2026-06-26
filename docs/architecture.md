@@ -1,15 +1,15 @@
 # Architecture — nf-varcall-cloud
 
-> arc42-light. Stabiles Gesamtbild hier; Einzelentscheidungen → `adr/`.
+> arc42-light. Stable big picture lives here; individual decisions → `adr/`.
 
-## Kontext & Ziele
-<!-- TODO Tag 2 -->
+## Context & Goals
+<!-- TODO Day 2 -->
 
 ## Constraints
-<!-- TODO Tag 2 -->
+<!-- TODO Day 2 -->
 
-## Qualitätsziele (NFRs)
-<!-- TODO Tag 2 -->
+## Quality Goals (NFRs)
+<!-- TODO Day 2 -->
 
-## Architektur
-<!-- C4 Context+Container (Mermaid): folgt Tag 3 -->
+## Architecture
+<!-- C4 Context+Container (Mermaid): coming Day 3 -->
