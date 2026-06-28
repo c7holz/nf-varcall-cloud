@@ -5,3 +5,4 @@ otherwise it's a note, not an ADR.
 
 | No. | Title | Status |
 |-----|-------|--------|
+| 0001 | Keep Nextflow as orchestrator, swap the executor | Accepted |
