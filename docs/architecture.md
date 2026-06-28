@@ -3,13 +3,21 @@
 > arc42-light. Stable big picture lives here; individual decisions → `adr/`.
 
 ## Context & Goals
-<!-- TODO Day 2 -->
+A small, tested Nextflow pipeline (FASTQ → variants) that runs both locally with
+containers and elastically on AWS Batch. The point of this repo is not the analysis
+(standard), but demonstrating **local↔cloud parity, reproducibility, and
+cost-awareness** in pipeline execution.
 
 ## Constraints
-<!-- TODO Day 2 -->
+- Public data only, no patient data (CI on `nf-core/test-datasets`; cloud run on a
+  downsampled GIAB sample, GRCh38).
+- Scope limited to a small region (gene panel / chr20) to keep runtime and cost minimal.
+- Built with a regulated-clinical lens (reproducibility, auditability) as the differentiator.
 
 ## Quality Goals (NFRs)
-<!-- TODO Day 2 -->
+- **Reproducibility** — identical results local and on cloud; pinned containers.
+- **Cost transparency** — every cloud run is cheap and observable (Spot, budget alarm, teardown).
+- **Local↔cloud parity** — same pipeline; only the executor and work-dir change.
 
 ## Architecture
-<!-- C4 Context+Container (Mermaid): coming Day 3 -->
+<!-- C4 Context+Container (Mermaid): coming next PR -->
