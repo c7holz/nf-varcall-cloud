@@ -20,4 +20,28 @@ cost-awareness** in pipeline execution.
 - **Local↔cloud parity** — same pipeline; only the executor and work-dir change.
 
 ## Architecture
-<!-- C4 Context+Container (Mermaid): coming next PR -->
+
+```mermaid
+flowchart TB
+    subgraph shared["Shared across both profiles"]
+        nf["Nextflow orchestrator<br/>same pipeline + modules"]
+        img["Containers<br/>BioContainers + 1 custom ECR image"]
+    end
+
+    subgraph local["Profile: local"]
+        lexec["Local executor"]
+        lwd[("Local work-dir<br/>(filesystem)")]
+        lexec --> lwd
+    end
+
+    subgraph cloud["Profile: awsbatch"]
+        batch["AWS Batch<br/>compute env + job queue, Spot"]
+        s3[("S3 work-dir")]
+        batch --> s3
+    end
+
+    nf --> lexec
+    nf --> batch
+    img -.pulled by.-> lexec
+    img -.pulled by.-> batch
+```
