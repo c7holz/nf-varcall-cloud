@@ -1,0 +1,34 @@
+nextflow_pipeline {
+    name "Pipeline skeleton (stub-run)"
+    script "main.nf"
+
+    test("full DAG resolves with --build_index") {
+        options "-stub-run"
+        when {
+            params {
+                input  = "$projectDir/tests/data/samplesheet.csv"
+                fasta  = "$projectDir/tests/data/ref.fasta"
+		build_index = true
+                outdir = "$outputDir"
+            }
+        }
+        then {
+            assert workflow.success
+        }
+    }
+
+    test("fails fast when no index and no --build_index") {
+        options "-stub-run"
+        when {
+            params {
+                input  = "$projectDir/tests/data/samplesheet.csv"
+                fasta  = "$projectDir/tests/data/ref.fasta"
+                outdir = "$outputDir"
+            }
+        }
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { it.contains("No BWA index provided") }
+        }
+    }
+}
