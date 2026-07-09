@@ -1,0 +1,15 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nf-core/setup-nextflow@v2
+      - name: Install nf-test
+        run: |
+          curl -fsSL https://get.nf-test.com | bash
+          sudo mv nf-test /usr/local/bin/
+      - name: nf-test (stub)
+        run: nf-test test
