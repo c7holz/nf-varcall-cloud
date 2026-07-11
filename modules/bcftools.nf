@@ -8,6 +8,9 @@ process BCFTOOLS {
     output:
     tuple val(meta), path("*.vcf.gz"), emit: vcf
 
+    script:
+    "touch ${meta.id}.vcf.gz"
+
     stub:
     "touch ${meta.id}.vcf.gz"
 }

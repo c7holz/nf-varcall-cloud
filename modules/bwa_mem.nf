@@ -8,6 +8,9 @@ process BWA_MEM {
     output:
     tuple val(meta), path("*.bam"), emit: bam
 
+    script:
+    "touch ${meta.id}.bam"
+    
     stub:
     "touch ${meta.id}.bam"
 }
