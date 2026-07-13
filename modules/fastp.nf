@@ -21,4 +21,3 @@ process FASTP {
     touch ${meta.id}.fastp.json ${meta.id}.fastp.html
     """
 }
-}
