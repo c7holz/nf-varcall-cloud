@@ -107,3 +107,21 @@ class CacheTestCase(unittest.TestCase):
         self.urlopen = urlopen.start()
         self.addCleanup(urlopen.stop)
         self.urlopen.side_effect = AssertionError("network access in a unit test")
+
+
+class ValidateUcscTests(unittest.TestCase):
+    """``_validate_ucsc`` — the gate a UCSC body passes before it is cached."""
+
+    def test_accepts_valid_payload(self) -> None:
+        self.assertIsNone(sources._validate_ucsc(b'{"dna": "ACGT"}', URL))
+
+    def test_rejects_non_json(self) -> None:
+        with self.assertRaises(sources.SourceError) as cm:
+            sources._validate_ucsc(b"<html>503 Service Unavailable</html>", URL)
+        self.assertIn(URL, str(cm.exception))
+
+    def test_rejects_error_payload_with_http_200(self) -> None:
+        # The case the validator exists for: UCSC reports failure in a 200 body,
+        # so _fetch sees a perfectly good response and would cache the error.
+        with self.assertRaisesRegex(sources.SourceError, "no such table"):
+            sources._validate_ucsc(b'{"error": "no such table"}', URL)
