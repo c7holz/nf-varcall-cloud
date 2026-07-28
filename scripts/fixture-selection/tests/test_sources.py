@@ -125,3 +125,46 @@ class ValidateUcscTests(unittest.TestCase):
         # so _fetch sees a perfectly good response and would cache the error.
         with self.assertRaisesRegex(sources.SourceError, "no such table"):
             sources._validate_ucsc(b'{"error": "no such table"}', URL)
+
+
+class ValidateBedTests(unittest.TestCase):
+    """``_validate_bed`` — the gate a GIAB body passes before it is cached."""
+
+    def test_accepts_minimal_bed(self) -> None:
+        self.assertIsNone(sources._validate_bed(b"chr20\t100\t200\n"))
+
+    def test_accepts_extra_columns(self) -> None:
+        self.assertIsNone(sources._validate_bed(b"chr20\t100\t200\tname\t0\t+\n"))
+
+    def test_skips_header_lines(self) -> None:
+        raw = (
+            b"# a comment\n"
+            b'track name="HG001"\n'
+            b"browser position chr20\n"
+            b"chr20\t100\t200\n"
+        )
+        self.assertIsNone(sources._validate_bed(raw))
+
+    def test_rejects_html_error_page(self) -> None:
+        # The case the validator exists for: NCBI's FTP-over-HTTP serves error
+        # pages with status 200, so _fetch sees a perfectly good response.
+        with self.assertRaisesRegex(sources.SourceError, "not BED"):
+            sources._validate_bed(b"<!DOCTYPE html>\n<html>404</html>\n")
+
+    def test_rejects_empty_download(self) -> None:
+        for raw in (b"", b"\n\n", b"# only a comment\n"):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(sources.SourceError, "empty"):
+                    sources._validate_bed(raw)
+
+    def test_rejects_non_integer_coordinates(self) -> None:
+        for raw in (b"chr20\t100\n", b"chr20\tfoo\t200\n", b"chr20\t100\tbar\n"):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(sources.SourceError, "not BED"):
+                    sources._validate_bed(raw)
+
+    def test_only_the_first_data_line_is_checked(self) -> None:
+        # Deliberate: the guard's reach ends at the first data line, so a body
+        # truncated mid-file passes here. Detecting that is a digest's job, not
+        # this validator's — see the phase-4 per-source sha256 requirement.
+        self.assertIsNone(sources._validate_bed(b"chr20\t100\t200\nnot a bed line\n"))
