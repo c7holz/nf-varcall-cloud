@@ -4,32 +4,23 @@ Run from ``scripts/fixture-selection/``::
 
     python3 -m unittest discover -v
 
-Stdlib only, no venv, and never in CI — same rule as the package under test.
-Every test here is offline: the network boundary is stubbed, and
-:class:`CacheTestCase` additionally makes a real request *fail loudly* rather
-than succeed quietly. What the live sources actually return is not this file's
-concern; that is the ``reproduce`` command's job, which re-derives the committed
-``results/`` end to end.
-
-These tests cover the places where a silent bug corrupts the audit — validation
-that must reject a bad body before it reaches the cache, interval parsing, and
-the retry classification in ``_fetch``.
+Stdlib only, no venv, never in CI — the same rule as the package under test.
+Everything here is offline: the network boundary is stubbed, and
+:class:`CacheTestCase` makes a stray real request *fail loudly* rather than
+succeed quietly. What the live sources actually return is the ``reproduce``
+command's concern, not this file's. A test earns its place here by covering a
+spot where a silent bug would corrupt the audit.
 
 Conventions
 -----------
 
-* **URLs are not regex.** Source URLs contain ``?`` and ``&``, which
-  ``assertRaisesRegex`` would interpret. Assertions on a message carrying a URL
-  or path use ``assertRaises(...) as cm`` plus ``assertIn``; ``assertRaisesRegex``
-  is reserved for regex-safe literal fragments.
-* **``subTest`` loops that assert call counts reset their mocks** at the top of
-  each iteration, otherwise counts accumulate across cases and the assertion
-  means nothing.
-* **urllib capitalizes header lookups.** ``Request.get_header("User-Agent")``
-  returns ``None``; only ``get_header("User-agent")`` finds it — a test using
-  the obvious spelling would pass against nothing.
-* **Pass an explicit no-op validator** (``lambda body: None``) in the ``_cached``
-  tests that are not exercising validation.
+* **URLs are not regex.** They carry ``?`` and ``&``, which
+  ``assertRaisesRegex`` would interpret. Assert on a message containing a URL
+  or a path with ``assertRaises(...) as cm`` plus ``assertIn``.
+* **Reset the mocks inside a ``subTest`` loop that counts calls**, or the
+  counts accumulate across cases and the assertion means nothing.
+* **Pass an explicit no-op validator** (``lambda body: None``) to ``_cached``
+  in tests that are not exercising validation.
 """
 
 from __future__ import annotations
