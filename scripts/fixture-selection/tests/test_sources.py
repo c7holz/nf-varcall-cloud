@@ -34,6 +34,7 @@ Conventions
 
 from __future__ import annotations
 
+import io
 import unittest
 import urllib.error
 import urllib.parse
@@ -55,9 +56,16 @@ FAKE_REASON = "stubbed HTTP error (unit test)"
 
 
 def http_error(code: int) -> urllib.error.HTTPError:
-    """An ``HTTPError`` carrying ``code``. ``fp=None`` is supported, and
-    ``.reason`` reads back :data:`FAKE_REASON`."""
-    return urllib.error.HTTPError(URL, code, FAKE_REASON, {}, None)
+    """An ``HTTPError`` carrying ``code``, with ``.reason`` reading back
+    :data:`FAKE_REASON`."""
+    # Both odd details below are load-bearing. HTTPError doubles as a response
+    # object, so an unclosed one emits a ResourceWarning mid-run, blamed on
+    # whichever test is executing; closing it keeps code and reason, which is
+    # all _fetch reads. The explicit buffer is what makes close() safe before
+    # Python 3.13, which is the first version to substitute one for fp=None.
+    exc = urllib.error.HTTPError(URL, code, FAKE_REASON, {}, io.BytesIO())
+    exc.close()
+    return exc
 
 
 class FakeResponse:
