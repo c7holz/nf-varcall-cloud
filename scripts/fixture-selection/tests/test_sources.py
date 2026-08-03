@@ -167,3 +167,109 @@ class ValidateBedTests(unittest.TestCase):
         # truncated mid-file passes here. Detecting that is a digest's job, not
         # this validator's — see the phase-4 per-source sha256 requirement.
         self.assertIsNone(sources._validate_bed(b"chr20\t100\t200\nnot a bed line\n"))
+
+
+class FetchTests(unittest.TestCase):
+    """``_fetch`` — the single network boundary, and how it classifies failure.
+
+    Deliberately not a :class:`CacheTestCase` subclass: this is the one place
+    that *should* call ``urlopen``, so it owns a real mock rather than
+    inheriting the land mine. ``time.sleep`` is patched because ``_fetch``
+    otherwise waits 2+4+8 s across a full retry schedule.
+    """
+
+    def setUp(self) -> None:
+        urlopen = mock.patch("urllib.request.urlopen")
+        self.urlopen = urlopen.start()
+        self.addCleanup(urlopen.stop)
+
+        sleep = mock.patch("time.sleep")
+        self.sleep = sleep.start()
+        self.addCleanup(sleep.stop)
+
+    def test_returns_body_on_first_try(self) -> None:
+        self.urlopen.return_value = FakeResponse(b"payload")
+        self.assertEqual(sources._fetch(URL), b"payload")
+        self.assertEqual(self.urlopen.call_count, 1)
+
+    def test_sends_project_user_agent(self) -> None:
+        self.urlopen.return_value = FakeResponse(b"payload")
+        sources._fetch(URL)
+
+        req = self.urlopen.call_args.args[0]
+        # urllib capitalizes header names on the way in, so "User-Agent" reads
+        # back as None and an assertion using it would pass against nothing.
+        self.assertEqual(req.get_header("User-agent"), sources.USER_AGENT)
+        # Identify the tool, carry no contact address: anonymous urllib gets
+        # rate-limited first, but an email in the header is personal data.
+        self.assertNotIn("@", sources.USER_AGENT)
+
+    def test_fast_fails_on_non_retryable_status(self) -> None:
+        # The client's own fault — retrying cannot change the answer. Also
+        # guards the except-arm ordering: HTTPError ⊂ URLError ⊂ OSError, so
+        # the HTTPError arm must stay first or every 404 starts retrying.
+        for code in (400, 403, 404, 501):
+            with self.subTest(code=code):
+                self.urlopen.reset_mock()
+                self.sleep.reset_mock()
+                self.urlopen.side_effect = http_error(code)
+
+                with self.assertRaisesRegex(sources.SourceError, f"HTTP {code}"):
+                    sources._fetch(URL)
+
+                self.assertEqual(self.urlopen.call_count, 1)
+                self.assertEqual(self.sleep.call_count, 0)
+
+    def test_retries_retryable_status_then_succeeds(self) -> None:
+        # Includes 408 and 429 — the two 4xx codes that must not take the
+        # fast-fail branch above.
+        for code in sorted(sources.RETRYABLE_STATUS):
+            with self.subTest(code=code):
+                self.urlopen.reset_mock()
+                self.urlopen.side_effect = [
+                    http_error(code),
+                    http_error(code),
+                    FakeResponse(b"ok"),
+                ]
+
+                self.assertEqual(sources._fetch(URL), b"ok")
+                self.assertEqual(self.urlopen.call_count, 3)
+
+    def test_retries_transient_connection_errors(self) -> None:
+        self.urlopen.side_effect = [
+            urllib.error.URLError("timed out"),
+            FakeResponse(b"ok"),
+        ]
+
+        self.assertEqual(sources._fetch(URL), b"ok")
+        self.assertEqual(self.urlopen.call_count, 2)
+
+    def test_gives_up_after_max_retries(self) -> None:
+        self.urlopen.side_effect = urllib.error.URLError("timed out")
+
+        with self.assertRaises(sources.SourceError) as cm:
+            sources._fetch(URL)
+
+        message = str(cm.exception)
+        self.assertIn(f"failed after {sources.MAX_RETRIES} attempts", message)
+        self.assertIn(URL, message)
+        # The last error's own text survives into the message: without it the
+        # caller learns that every attempt failed but never why.
+        self.assertIn("timed out", message)
+        self.assertEqual(self.urlopen.call_count, sources.MAX_RETRIES)
+
+    def test_backoff_is_exponential_and_paced(self) -> None:
+        self.urlopen.side_effect = [
+            urllib.error.URLError("timed out"),
+            urllib.error.URLError("timed out"),
+            FakeResponse(b"ok"),
+        ]
+
+        sources._fetch(URL)
+
+        # Two backoffs before the retries, then the courtesy delay UCSC is owed
+        # once the request finally succeeds.
+        self.assertEqual(
+            self.sleep.mock_calls,
+            [mock.call(2), mock.call(4), mock.call(sources.REQUEST_DELAY_S)],
+        )
