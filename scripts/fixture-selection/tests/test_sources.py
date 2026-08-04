@@ -273,3 +273,98 @@ class FetchTests(unittest.TestCase):
             self.sleep.mock_calls,
             [mock.call(2), mock.call(4), mock.call(sources.REQUEST_DELAY_S)],
         )
+
+
+class CachedTests(CacheTestCase):
+    """``_cached`` — the read-through cache, and what it refuses to keep.
+
+    Validation runs on both paths on purpose, and these tests pin both: a body
+    that fails the gate must never end up on disk, because the cache is what a
+    later offline run trusts in place of the source.
+    """
+
+    KEY = "ucsc/x.json"
+
+    def setUp(self) -> None:
+        super().setUp()
+        fetch = mock.patch.object(sources, "_fetch")
+        self.fetch = fetch.start()
+        self.addCleanup(fetch.stop)
+
+    def prewrite(self, body: bytes) -> Path:
+        """Seed the cache entry as an earlier run would have left it."""
+        path = self.cache_dir / self.KEY
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+        return path
+
+    def test_fetch_on_miss_writes_cache(self) -> None:
+        self.fetch.return_value = b"body"
+
+        body = sources._cached(self.KEY, URL, validate=lambda body: None)
+
+        self.assertEqual(body, b"body")
+        self.assertEqual((self.cache_dir / self.KEY).read_bytes(), b"body")
+        self.fetch.assert_called_once_with(URL)
+
+    def test_creates_nested_parent_directories(self) -> None:
+        # The key carries a subdirectory that no earlier run has created.
+        nested = self.cache_dir / "ucsc"
+        self.assertFalse(nested.exists())
+        self.fetch.return_value = b"body"
+
+        sources._cached(self.KEY, URL, validate=lambda body: None)
+
+        self.assertTrue(nested.is_dir())
+        # _atomic_write renames its temp file rather than leaving it behind; a
+        # stray .tmp would be read by nothing but would mean the rename is gone.
+        self.assertEqual(list(nested.glob("*.tmp")), [])
+
+    def test_cache_hit_does_not_fetch(self) -> None:
+        self.prewrite(b"body")
+
+        body = sources._cached(self.KEY, URL, validate=lambda body: None)
+
+        self.assertEqual(body, b"body")
+        self.fetch.assert_not_called()
+
+    def test_validates_on_cache_hit(self) -> None:
+        self.prewrite(b"body")
+        validate = mock.Mock(return_value=None)
+
+        body = sources._cached(self.KEY, URL, validate=validate)
+
+        self.assertEqual(body, b"body")
+        validate.assert_called_once_with(b"body")
+        self.fetch.assert_not_called()
+
+    def test_drops_poisoned_cache_entry_and_refetches(self) -> None:
+        # An error page an earlier run cached before the validator existed, or
+        # a file left truncated by an interrupted run: rejecting it on read is
+        # what stops one bad download from outliving the run that made it.
+        path = self.prewrite(b"<html>")
+        self.fetch.return_value = b"good"
+
+        def validate(body: bytes) -> None:
+            if body == b"<html>":
+                raise sources.SourceError("poisoned")
+
+        body = sources._cached(self.KEY, URL, validate=validate)
+
+        self.assertEqual(body, b"good")
+        self.assertEqual(path.read_bytes(), b"good")
+        self.fetch.assert_called_once_with(URL)
+
+    def test_does_not_cache_a_bad_fresh_fetch(self) -> None:
+        self.fetch.return_value = b"<html>"
+
+        def validate(body: bytes) -> None:
+            raise sources.SourceError("not JSON")
+
+        with self.assertRaisesRegex(sources.SourceError, "not JSON"):
+            sources._cached(self.KEY, URL, validate=validate)
+
+        # Nothing written at all: a raise the caller retries past would
+        # otherwise leave the bad body to be served offline as though good.
+        self.assertFalse((self.cache_dir / self.KEY).exists())
+        self.assertEqual(list(self.cache_dir.rglob("*.tmp")), [])
