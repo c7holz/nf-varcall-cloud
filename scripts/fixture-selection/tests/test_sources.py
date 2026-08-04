@@ -119,6 +119,15 @@ class ValidateUcscTests(unittest.TestCase):
             sources._validate_ucsc(b"<html>503 Service Unavailable</html>", URL)
         self.assertIn(URL, str(cm.exception))
 
+    def test_rejects_non_object_json(self) -> None:
+        # _cached drops a cache entry only when the validator raises SourceError,
+        # so a TypeError here wedges the entry instead of healing it.
+        for raw in (b"0", b"null", b'"error"', b"[1, 2]"):
+            with self.subTest(raw=raw):
+                with self.assertRaises(sources.SourceError) as cm:
+                    sources._validate_ucsc(raw, URL)
+                self.assertIn(URL, str(cm.exception))
+
     def test_rejects_error_payload_with_http_200(self) -> None:
         # The case the validator exists for: UCSC reports failure in a 200 body,
         # so _fetch sees a perfectly good response and would cache the error.

@@ -134,6 +134,10 @@ def _validate_ucsc(raw: bytes, url: str) -> None:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise SourceError(f"UCSC returned non-JSON for {url}: {exc}") from None
+    if not isinstance(payload, dict):
+        raise SourceError(
+            f"UCSC returned a JSON {type(payload).__name__}, not an object, for {url}"
+        )
     if "error" in payload:
         raise SourceError(f"UCSC error for {url}: {payload['error']}")
 
