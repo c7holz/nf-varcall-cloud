@@ -26,6 +26,7 @@ Conventions
 from __future__ import annotations
 
 import io
+import json
 import unittest
 import urllib.error
 import urllib.parse
@@ -80,6 +81,11 @@ def query_of(url: str) -> dict[str, list[str]]:
     """Parsed query parameters of ``url``, so URL assertions do not depend on
     the ordering ``urlencode`` happens to produce."""
     return urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+
+
+def ucsc_body(payload: object) -> bytes:
+    """The bytes a UCSC JSON response would carry for ``payload``."""
+    return json.dumps(payload).encode()
 
 
 class CacheTestCase(unittest.TestCase):
@@ -377,3 +383,109 @@ class CachedTests(CacheTestCase):
         # otherwise leave the bad body to be served offline as though good.
         self.assertFalse((self.cache_dir / self.KEY).exists())
         self.assertEqual(list(self.cache_dir.rglob("*.tmp")), [])
+
+
+class SequenceTests(CacheTestCase):
+    """``sequence()`` — the window fetch, over the real cache and the real
+    UCSC validator with only ``_fetch`` stubbed."""
+
+    CHROM = "chr20"
+    START = 40100000
+    END = 40100010
+    DNA = "ACGTacgtNN"
+
+    def setUp(self) -> None:
+        super().setUp()
+        fetch = mock.patch.object(sources, "_fetch")
+        self.fetch = fetch.start()
+        self.addCleanup(fetch.stop)
+        self.fetch.return_value = ucsc_body({"dna": self.DNA})
+
+    def test_returns_dna_preserving_soft_mask_case(self) -> None:
+        # Case is data: lowercase is RepeatMasker soft-masking, and a window's
+        # repeat fraction is derived from it. Normalizing case anywhere on this
+        # path would zero that metric with nothing raising.
+        self.assertEqual(sources.sequence(self.CHROM, self.START, self.END), self.DNA)
+
+    def test_rejects_wrong_length_sequence(self) -> None:
+        # A 10 bp request answered with 5 bases, then with 20. A length check
+        # only: ten characters of anything pass, and whether they are the real
+        # hg38 is the phase-4 digest's job.
+        #
+        # Each case uses its own coordinates on purpose: a wrong-length body is
+        # cached anyway (_validate_ucsc checks JSON shape, not length), so
+        # reusing them would serve case 1's body back for case 2.
+        for start, dna in ((self.START, "ACGTA"), (40200000, self.DNA * 2)):
+            with self.subTest(length=len(dna)):
+                self.fetch.return_value = ucsc_body({"dna": dna})
+
+                with self.assertRaisesRegex(
+                    sources.SourceError, f"expected 10 bp, got {len(dna)}"
+                ):
+                    sources.sequence(self.CHROM, start, start + 10)
+
+    def test_rejects_missing_dna_field(self) -> None:
+        # A UCSC response with no "dna" field must raise naming the window
+        # that failed and the keys that came back instead.
+        self.fetch.return_value = ucsc_body({"chrom": "chr20"})
+
+        with self.assertRaisesRegex(
+            sources.SourceError,
+            rf"no 'dna'.*{self.CHROM}:{self.START}-{self.END}.*got keys \['chrom'\]",
+        ):
+            sources.sequence(self.CHROM, self.START, self.END)
+
+    def test_requests_the_exact_coordinates(self) -> None:
+        # The request carries the caller's exact coordinates: a window shifted
+        # off position but right in width still returns the right number of
+        # bases, so no other check would notice.
+        sources.sequence(self.CHROM, self.START, self.END)
+
+        url = self.fetch.call_args.args[0]
+        self.assertIn("getData/sequence", url)
+        self.assertEqual(
+            query_of(url),
+            {
+                "genome": ["hg38"],
+                "chrom": ["chr20"],
+                "start": ["40100000"],
+                "end": ["40100010"],
+            },
+        )
+
+    def test_cache_key_is_per_window(self) -> None:
+        # Asked twice for the same window: one fetch, then the cache answers.
+        sources.sequence(self.CHROM, self.START, self.END)
+        sources.sequence(self.CHROM, self.START, self.END)
+
+        self.assertEqual(self.fetch.call_count, 1)
+        self.assertEqual(
+            sorted(p.name for p in (self.cache_dir / "ucsc").glob("*.json")),
+            ["seq_hg38_chr20_40100000_40100010.json"],
+        )
+
+        # Three distinct windows: three fetches, one cache file each, named by
+        # chrom, start and end.
+        sources.sequence(self.CHROM, 40200000, 40200010)
+        self.fetch.return_value = ucsc_body({"dna": self.DNA * 2})  # 20 bp wide
+        sources.sequence(self.CHROM, self.START, self.END + 10)
+
+        self.assertEqual(self.fetch.call_count, 3)
+        self.assertEqual(
+            sorted(p.name for p in (self.cache_dir / "ucsc").glob("*.json")),
+            [
+                "seq_hg38_chr20_40100000_40100010.json",
+                "seq_hg38_chr20_40100000_40100020.json",
+                "seq_hg38_chr20_40200000_40200010.json",
+            ],
+        )
+
+    def test_error_payload_is_not_cached(self) -> None:
+        # A UCSC error reported in a 200 body: sequence() raises an error and writes no
+        # cache entry.
+        self.fetch.return_value = ucsc_body({"error": "no such table"})
+
+        with self.assertRaisesRegex(sources.SourceError, "no such table"):
+            sources.sequence(self.CHROM, self.START, self.END)
+
+        self.assertEqual(list(self.cache_dir.rglob("*.json")), [])
