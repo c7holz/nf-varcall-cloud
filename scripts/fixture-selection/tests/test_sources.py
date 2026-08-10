@@ -151,13 +151,11 @@ class ValidateBedTests(unittest.TestCase):
         self.assertIsNone(sources._validate_bed(b"chr20\t100\t200\tname\t0\t+\n"))
 
     def test_skips_header_lines(self) -> None:
-        raw = (
-            b"# a comment\n"
-            b'track name="HG001"\n'
-            b"browser position chr20\n"
-            b"chr20\t100\t200\n"
-        )
-        self.assertIsNone(sources._validate_bed(raw))
+        header = b"# a comment\n" b'track name="HG001"\n' b"browser position chr20\n"
+        self.assertIsNone(sources._validate_bed(header + b"chr20\t100\t200\n"))
+        # Skipped, not stopped at: the bad line behind them must still be reached.
+        with self.assertRaisesRegex(sources.SourceError, "not BED"):
+            sources._validate_bed(header + b"<html>404</html>\n")
 
     def test_rejects_html_error_page(self) -> None:
         # The case the validator exists for: NCBI's FTP-over-HTTP serves error
@@ -171,8 +169,12 @@ class ValidateBedTests(unittest.TestCase):
                 with self.assertRaisesRegex(sources.SourceError, "empty"):
                     sources._validate_bed(raw)
 
+    def test_rejects_too_few_columns(self) -> None:
+        with self.assertRaisesRegex(sources.SourceError, "not BED"):
+            sources._validate_bed(b"chr20\t100\n")
+
     def test_rejects_non_integer_coordinates(self) -> None:
-        for raw in (b"chr20\t100\n", b"chr20\tfoo\t200\n", b"chr20\t100\tbar\n"):
+        for raw in (b"chr20\tfoo\t200\n", b"chr20\t100\tbar\n"):
             with self.subTest(raw=raw):
                 with self.assertRaisesRegex(sources.SourceError, "not BED"):
                     sources._validate_bed(raw)
