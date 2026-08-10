@@ -14,6 +14,11 @@ spot where a silent bug would corrupt the audit.
 Conventions
 -----------
 
+* **The stubs assume ``sources`` resolves ``urlopen`` at call time**, i.e.
+  ``import urllib.request`` rather than ``from urllib.request import urlopen``
+  — that is what makes ``urllib.request.urlopen`` the patch target. If it ever
+  imports the name directly, :class:`CacheTestCase`'s land mine stops guarding
+  without any test going red.
 * **URLs are not regex.** They carry ``?`` and ``&``, which
   ``assertRaisesRegex`` would interpret. Assert on a message containing a URL
   or a path with ``assertRaises(...) as cm`` plus ``assertIn``.
@@ -47,22 +52,23 @@ URL = "https://api.genome.ucsc.edu/getData/sequence?genome=hg38&chrom=chr20"
 FAKE_REASON = "stubbed HTTP error (unit test)"
 
 
-def http_error(code: int) -> urllib.error.HTTPError:
-    """An ``HTTPError`` carrying ``code``, with ``.reason`` reading back
-    :data:`FAKE_REASON`."""
-    # Both odd details below are load-bearing. HTTPError doubles as a response
-    # object, so an unclosed one emits a ResourceWarning mid-run, blamed on
-    # whichever test is executing; closing it keeps code and reason, which is
-    # all _fetch reads. The explicit buffer is what makes close() safe before
-    # Python 3.13, which is the first version to substitute one for fp=None.
-    exc = urllib.error.HTTPError(URL, code, FAKE_REASON, {}, io.BytesIO())
+def http_error(status: int) -> urllib.error.HTTPError:
+    """An ``HTTPError`` carrying HTTP status ``status`` (``404``, ``503``, ...)
+    and :data:`FAKE_REASON` as its ``.reason`` — the two fields ``_fetch``
+    reads."""
+    # HTTPError doubles as a response object: an unclosed one emits a
+    # ResourceWarning mid-run, blamed on whichever test is executing. The
+    # explicit buffer is what makes close() safe before Python 3.13, the first
+    # version to substitute one for fp=None.
+    exc = urllib.error.HTTPError(URL, status, FAKE_REASON, {}, io.BytesIO())
     exc.close()
     return exc
 
 
 class FakeResponse:
-    """Minimal stand-in for what ``urlopen`` returns: a context manager with
-    ``read()``. That is the whole surface ``sources._fetch`` uses."""
+    """Minimal stand-in for what ``urllib.request.urlopen`` returns: a context
+    manager with ``read()``. That is the whole surface ``sources._fetch``
+    uses."""
 
     def __init__(self, body: bytes) -> None:
         self._body = body
