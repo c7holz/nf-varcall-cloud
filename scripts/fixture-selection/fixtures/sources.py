@@ -183,11 +183,8 @@ def sequence(chrom: str, start: int, end: int) -> str:
 def track(name: str, chrom: str) -> list[dict]:
     """Raw feature dicts from a UCSC track, restricted to one chromosome.
 
-    UCSC keys the payload by track name, and returns either a flat list of
-    features or a per-chromosome mapping depending on the track. Both shapes are
-    handled explicitly; anything else raises rather than silently yielding an
-    empty list — an empty track would quietly disable an exclusion filter and
-    inflate the surviving-window count.
+    Never returns an empty list — an empty track would silently disable an
+    exclusion filter. A response with no features raises instead.
     """
     payload = _ucsc(
         "getData/track", f"track_{GENOME}_{name}_{chrom}", track=name, chrom=chrom
@@ -198,8 +195,6 @@ def track(name: str, chrom: str) -> list[dict]:
             f"got keys {sorted(payload)}"
         )
     data = payload[name]
-    if isinstance(data, dict):  # per-chromosome mapping
-        data = data.get(chrom, [])
     if not isinstance(data, list):
         raise SourceError(
             f"track '{name}' on {chrom}: expected a list of features, "
@@ -217,8 +212,6 @@ def track_intervals(name: str, chrom: str) -> list[tuple[int, int]]:
     """``(start, end)`` pairs from a UCSC track, sorted and 0-based half-open."""
     out = []
     for feature in track(name, chrom):
-        if feature.get("chrom", chrom) != chrom:
-            continue
         try:
             out.append((int(feature["chromStart"]), int(feature["chromEnd"])))
         except (KeyError, TypeError, ValueError) as exc:
