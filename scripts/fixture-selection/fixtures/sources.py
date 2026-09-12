@@ -80,7 +80,7 @@ def _fetch(url: str) -> bytes:
             if exc.code not in RETRYABLE_STATUS:
                 raise SourceError(f"HTTP {exc.code} for {url}: {exc.reason}") from exc
             last = exc
-        except (urllib.error.URLError, OSError) as exc:
+        except OSError as exc:
             last = exc
     raise SourceError(f"failed after {MAX_RETRIES} attempts: {url}\n  {last}")
 
