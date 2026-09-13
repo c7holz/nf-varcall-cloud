@@ -16,6 +16,7 @@ Both sources are public domain, satisfying the repository's "public data only" r
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import time
 import urllib.error
@@ -60,11 +61,12 @@ class SourceError(RuntimeError):
 def _fetch(url: str) -> bytes:
     """GET ``url`` and return the raw body.
 
-    Transient failures — connection errors, timeouts, and the retryable HTTP
-    statuses in :data:`RETRYABLE_STATUS` (5xx, 408, 429) — are retried with
-    exponential backoff. A non-retryable HTTP status (404, 400, 403, …) is the
-    request's own fault and would fail identically on retry, so it raises at
-    once instead of exhausting the backoff schedule first.
+    Transient failures — connection errors, timeouts, a body dropped
+    mid-transfer, and the retryable HTTP statuses in :data:`RETRYABLE_STATUS`
+    (5xx, 408, 429) — are retried with exponential backoff. A non-retryable
+    HTTP status (404, 400, 403, …) is the request's own fault and would fail
+    identically on retry, so it raises at once instead of exhausting the
+    backoff schedule first.
     """
     last: Exception | None = None
     for attempt in range(MAX_RETRIES):
@@ -80,7 +82,7 @@ def _fetch(url: str) -> bytes:
             if exc.code not in RETRYABLE_STATUS:
                 raise SourceError(f"HTTP {exc.code} for {url}: {exc.reason}") from exc
             last = exc
-        except OSError as exc:
+        except (OSError, http.client.HTTPException) as exc:
             last = exc
     raise SourceError(f"failed after {MAX_RETRIES} attempts: {url}\n  {last}")
 

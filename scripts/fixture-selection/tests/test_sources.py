@@ -30,6 +30,7 @@ Conventions
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import unittest
@@ -81,6 +82,14 @@ class FakeResponse:
 
     def read(self) -> bytes:
         return self._body
+
+
+class DroppedResponse(FakeResponse):
+    """A response whose body drops mid-transfer: ``urlopen`` succeeds, then
+    ``read()`` raises. That is where a truncated download surfaces."""
+
+    def read(self) -> bytes:
+        raise http.client.IncompleteRead(self._body)
 
 
 def query_of(url: str) -> dict[str, list[str]]:
@@ -279,6 +288,25 @@ class FetchTests(unittest.TestCase):
         # The last error's own text survives into the message: without it the
         # caller learns that every attempt failed but never why.
         self.assertIn("timed out", message)
+        self.assertEqual(self.urlopen.call_count, sources.MAX_RETRIES)
+
+    def test_retries_a_dropped_transfer(self) -> None:
+        # IncompleteRead subclasses HTTPException, not OSError, so it reaches
+        # the transient arm only if that arm names it.
+        self.urlopen.side_effect = [DroppedResponse(b"half"), FakeResponse(b"ok")]
+
+        self.assertEqual(sources._fetch(URL), b"ok")
+        self.assertEqual(self.urlopen.call_count, 2)
+
+    def test_gives_up_on_a_persistent_dropped_transfer(self) -> None:
+        self.urlopen.return_value = DroppedResponse(b"half")
+
+        with self.assertRaises(sources.SourceError) as cm:
+            sources._fetch(URL)
+
+        self.assertIn(
+            f"failed after {sources.MAX_RETRIES} attempts", str(cm.exception)
+        )
         self.assertEqual(self.urlopen.call_count, sources.MAX_RETRIES)
 
     def test_backoff_is_exponential_and_paced(self) -> None:
