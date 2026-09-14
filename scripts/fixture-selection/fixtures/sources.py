@@ -226,7 +226,7 @@ def track_intervals(name: str, chrom: str) -> list[tuple[int, int]]:
 def _validate_bed(raw: bytes) -> None:
     """A body worth caching as BED: non-empty, with a tab-delimited first data
     line whose start/end are integers. Rejects an HTML error page and an empty
-    or truncated download before either reaches the cache."""
+    download before either reaches the cache."""
     for line in raw.splitlines():
         if not line or line.startswith((b"#", b"track", b"browser")):
             continue
