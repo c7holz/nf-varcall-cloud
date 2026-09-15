@@ -1,6 +1,6 @@
-"""Measures the properties that pick the reference window.
+"""Enumerates the candidate reference windows and measures the properties that pick one.
 
-Each function scores one window on a property that decides whether a variant
+Each measurement scores one window on a property that decides whether a variant
 planted inside it can be called unambiguously: how much of the window is repeat,
 how much of it the truth set covers, and how much of it a read can be placed in
 uniquely.
@@ -10,9 +10,41 @@ from __future__ import annotations
 
 from collections import Counter
 
+CHR20_LENGTH = 64_444_167  # hg38, per UCSC hg38.chrom.sizes
+WINDOW = 100_000  # candidate window length
+STRIDE = 250_000  # distance between consecutive candidate starts
+ANCHOR = 100_000  # first candidate's start
+# Distance a candidate must keep from every feature of each track.
+EXCLUSION_MARGINS = {"gap": 50_000, "genomicSuperDups": 10_000}
+
 HOLE_MIN = 500  # an uncovered stretch at least this long is counted as a hole
 
 COMPLEMENT = str.maketrans("ACGTN", "TGCAN")  # base-pairing table; anything else passes through
+
+
+def candidate_starts() -> list[int]:
+    """0-based starts of the candidate windows, the last one ending within chr20."""
+    return list(range(ANCHOR, CHR20_LENGTH - WINDOW + 1, STRIDE))
+
+
+def near_feature(start: int, intervals: list[tuple[int, int]], margin: int) -> bool:
+    """Whether the window lies closer than the margin to any of the intervals."""
+    end = start + WINDOW
+    return any(start < e + margin and end > s - margin for s, e in intervals)
+
+
+def survivors(
+    starts: list[int], tracks: dict[str, list[tuple[int, int]]]
+) -> list[int]:
+    """Starts whose windows keep their margin from every feature of every track."""
+    return [
+        start
+        for start in starts
+        if not any(
+            near_feature(start, tracks[name], margin)
+            for name, margin in EXCLUSION_MARGINS.items()
+        )
+    ]
 
 
 def repeat_fraction(dna: str) -> float:
