@@ -525,3 +525,46 @@ class SequenceTests(CacheTestCase):
             sources.sequence(self.CHROM, self.START, self.END)
 
         self.assertEqual(list(self.cache_dir.rglob("*.json")), [])
+
+
+class GeneSpansTests(CacheTestCase):
+    """``gene_spans()`` — the RefSeq projection, which reads different fields
+    than every other track."""
+
+    CHROM = "chr20"
+    TRACK = "ncbiRefSeqCurated"
+
+    def setUp(self) -> None:
+        super().setUp()
+        fetch = mock.patch.object(sources, "_fetch")
+        self.fetch = fetch.start()
+        self.addCleanup(fetch.stop)
+
+    def payload(self, *features: dict) -> bytes:
+        return ucsc_body({self.TRACK: list(features)})
+
+    def test_projects_transcript_bounds_and_symbol(self) -> None:
+        # RefSeq carries its bounds as txStart/txEnd and the gene symbol as
+        # name2; 'name' is the transcript accession. Taking 'name' fills the
+        # gene column with NM_ ids, which nothing downstream rejects.
+        self.fetch.return_value = self.payload(
+            {"txStart": 200, "txEnd": 300, "name": "NM_000002", "name2": "BBB"},
+            {"txStart": 100, "txEnd": 150, "name": "NM_000001", "name2": "AAA"},
+        )
+
+        self.assertEqual(
+            sources.gene_spans(self.TRACK, self.CHROM),
+            [(100, 150, "AAA"), (200, 300, "BBB")],
+        )
+
+    def test_rejects_a_feature_missing_a_field(self) -> None:
+        # A row shaped like the exclusion tracks — chromStart/chromEnd, no
+        # name2 — raises. Skipping it instead would drop a gene, and a window
+        # reads as intergenic exactly when no gene overlaps it.
+        self.fetch.return_value = self.payload(
+            {"chromStart": 100, "chromEnd": 150, "name": "NM_000001"}
+        )
+
+        with self.assertRaises(sources.SourceError) as cm:
+            sources.gene_spans(self.TRACK, self.CHROM)
+        self.assertIn("unparseable feature", str(cm.exception))

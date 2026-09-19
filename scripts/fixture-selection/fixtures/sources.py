@@ -223,6 +223,22 @@ def track_intervals(name: str, chrom: str) -> list[tuple[int, int]]:
     return sorted(out)
 
 
+def gene_spans(name: str, chrom: str) -> list[tuple[int, int, str]]:
+    """``(start, end, symbol)`` triples from a UCSC gene track, sorted and
+    0-based half-open."""
+    out = []
+    for feature in track(name, chrom):
+        try:
+            out.append(
+                (int(feature["txStart"]), int(feature["txEnd"]), feature["name2"])
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SourceError(
+                f"track '{name}' on {chrom}: unparseable feature {feature!r}"
+            ) from exc
+    return sorted(out)
+
+
 def _validate_bed(raw: bytes) -> None:
     """A body worth caching as BED: non-empty, with a tab-delimited first data
     line whose start/end are integers. Rejects an HTML error page and an empty
