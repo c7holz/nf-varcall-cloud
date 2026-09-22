@@ -24,6 +24,7 @@ ANCHOR = 100_000  # first candidate's start
 EXCLUSION_MARGINS = {"gap": 50_000, "genomicSuperDups": 10_000}
 
 HOLE_MIN = 500  # an uncovered stretch at least this long is counted as a hole
+GENE_TRACK = "ncbiRefSeqCurated"  # curated models only; excludes the predicted XM_/XR_ ones
 
 COMPLEMENT = str.maketrans("ACGTN", "TGCAN")  # base-pairing table; anything else passes through
 
@@ -124,6 +125,12 @@ def gaps(clipped: list[tuple[int, int]], start: int, end: int) -> list[int]:
     return out
 
 
+def overlapping_genes(start: int, spans: list[tuple[int, int, str]]) -> list[str]:
+    """Symbols of the genes reaching into the window, each named once, ascending."""
+    end = start + WINDOW
+    return sorted({name for s, e, name in spans if s < end and e > start})
+
+
 KMERS = (100, 150)  # read lengths a fixture might be simulated at
 
 COLUMNS = (
@@ -137,10 +144,13 @@ COLUMNS = (
     "hc_intervals",
     "holes_ge500",
     "gaps_lt500",
+    "genes",
 )
 
 
-def measure(start: int, dna: str, hc: list[tuple[int, int]]) -> dict:
+def measure(
+    start: int, dna: str, hc: list[tuple[int, int]], spans: list[tuple[int, int, str]]
+) -> dict:
     """Every scored property of one window, keyed by its column name."""
     end = start + WINDOW
     clipped = clipped_highconf(hc, start, end)
@@ -157,15 +167,19 @@ def measure(start: int, dna: str, hc: list[tuple[int, int]]) -> dict:
         "hc_intervals": len(clipped),
         "holes_ge500": holes,
         "gaps_lt500": len(uncovered) - holes,
+        "genes": ";".join(overlapping_genes(start, spans)),
     }
 
 
 def scan(starts: list[int]) -> list[dict]:
     """Measure each window, fetching its sequence. Prints one line per window."""
     hc = sources.giab_highconf(WINDOW_CHROM)
+    spans = sources.gene_spans(GENE_TRACK, WINDOW_CHROM)
     rows = []
     for n, start in enumerate(starts, 1):
-        row = measure(start, sources.sequence(WINDOW_CHROM, start, start + WINDOW), hc)
+        row = measure(
+            start, sources.sequence(WINDOW_CHROM, start, start + WINDOW), hc, spans
+        )
         rows.append(row)
         print(
             f"[{n}/{len(starts)}] {start:>10,}  "
@@ -178,9 +192,10 @@ def scan(starts: list[int]) -> list[dict]:
 
 
 def rank(rows: list[dict]) -> list[dict]:
-    """Windows whose truth coverage has no hole, least repetitive first."""
+    """Windows with no coverage hole and no gene, least repetitive first."""
     return sorted(
-        (r for r in rows if r["holes_ge500"] == 0), key=lambda r: r["repeat_frac"]
+        (r for r in rows if r["holes_ge500"] == 0 and not r["genes"]),
+        key=lambda r: r["repeat_frac"],
     )
 
 
@@ -198,6 +213,7 @@ def write_tsv(path: Path, rows: list[dict], scope: str) -> None:
         f"# {WINDOW_CHROM} (hg38), {CHR20_LENGTH:,} bp — {WINDOW:,} bp windows every "
         f"{STRIDE:,} bp from {ANCHOR:,}, keeping clear of {margins}",
         f"# {scope}",
+        f"# genes: {GENE_TRACK} symbols overlapping the window; empty is intergenic",
         "# regenerate: python3 -m fixtures.window   —   start is 0-based, half-open",
         "\t".join(COLUMNS),
     ]
@@ -209,8 +225,8 @@ def report(rows: list[dict]) -> None:
     """Print the ranking that chooses the window."""
     ranked = rank(rows)
     print(
-        f"\n--- {len(ranked)} of {len(rows)} windows have no hole ≥{HOLE_MIN} bp, "
-        f"least repetitive first ---"
+        f"\n--- {len(ranked)} of {len(rows)} windows have no hole ≥{HOLE_MIN} bp and no "
+        f"{GENE_TRACK} gene, least repetitive first ---"
     )
     for row in ranked[:5]:
         print(
