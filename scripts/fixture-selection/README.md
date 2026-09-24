@@ -83,7 +83,6 @@ expected call unambiguous.
 fixtures/
   __init__.py   the window under audit, as three constants        — present
   sources.py    the ONLY network boundary — UCSC + GIAB fetchers   — present
-  cli.py        entry point; the `reproduce` command              — present (stub)
   sites.py      site criteria — pure, no network                  — phase 2
   window.py     chr20-wide window scan                            — phase 3
 cache/          fetched responses, gitignored                     — appears on first fetch
@@ -105,12 +104,9 @@ Run from this directory (`scripts/fixture-selection/`), with no dependencies bey
 the standard library:
 
 ```bash
-python3 -m fixtures.cli reproduce
+python3 -m fixtures.sites
+python3 -m fixtures.window
 ```
-
-Today that prints a phase-4 notice and exits non-zero — `reproduce` is not built yet.
-What is already in place and importable is the primary-source layer
-(`fixtures.sources`) and the window constants (`fixtures/__init__.py`).
 
 ### `reproduce` (planned — phase 4)
 
