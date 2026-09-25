@@ -3,21 +3,6 @@
 Provenance scripts for the synthetic test fixtures (issue #14). They record **how**
 the reference window and the two planted variants were chosen.
 
-The audit is a single command, `reproduce` (phase 4 — not built yet): it re-derives
-the window and the two variants from the primary sources and diffs the result against
-the committed `results/` TSVs. Reproducing those numbers exercises the whole chain —
-fetch, filters, ranking — so it is a stronger check than re-verifying the raw inputs
-would be, and it subsumes any separate source check.
-
-There is deliberately **no drift monitor**. The primary sources are version-pinned
-and immutable — a frozen genome build (hg38) and a released benchmark (GIAB HG001
-v4.2.1, pinned in the URL) — so "do the sources still say the same thing?" is
-answered by construction. If a source ever became unreachable or changed shape, the
-fetch fails loudly rather than returning a quietly different answer; it cannot drift
-silently. The one lasting provenance fact — each source's URL, fetch date, and
-`sha256` — will be recorded in `results/sources.tsv`, documented rather than
-re-checked.
-
 These scripts hit the network and **never run in CI**. Not to be confused with
 `scripts/make_test_data.sh`, which is hermetic and regenerates `tests/data/`.
 
@@ -81,22 +66,18 @@ expected call unambiguous.
 
 ```
 fixtures/
-  __init__.py   the window under audit, as three constants        — present
-  sources.py    the ONLY network boundary — UCSC + GIAB fetchers   — present
-  sites.py      site criteria — pure, no network                  — phase 2
-  window.py     chr20-wide window scan                            — phase 3
-cache/          fetched responses, gitignored                     — appears on first fetch
-results/        committed TSVs — the audit artifact               — phase 4
+  __init__.py   the chosen window, as three constants
+  sources.py    the ONLY network boundary — UCSC + GIAB fetchers
+  sites.py      site criteria and ranking
+  window.py     chr20-wide window scan
+cache/          fetched responses, gitignored
+results/        committed TSVs — the record
 ```
 
-`sources.py` is the only code that touches the network; everything the filters do
-above it will be pure and unit-testable offline. Each response is cached verbatim
-under `cache/`, so that once warmed the derivation re-runs offline and free while you
-iterate — above all phase 3's ~190-fetch chr20-wide window scan. The cache is not
-committed: it is large and re-fetchable. What *is* committed is `results/` — the TSVs
-that every published number is read back from, and what `reproduce` diffs against.
-Neither `cache/` nor `results/` exists yet: the first is created on the first fetch,
-the second in phase 4.
+`sources.py` is the only code that touches the network. Each response is cached
+verbatim under `cache/`, so once warmed a re-run is offline. The cache is not
+committed: it is large and re-fetchable. `results/` is: the TSVs every published
+number is read from.
 
 ## Usage
 
@@ -107,42 +88,6 @@ the standard library:
 python3 -m fixtures.sites
 python3 -m fixtures.window
 ```
-
-### `reproduce` (planned — phase 4)
-
-When built, it will re-derive the whole decision from primary sources — fetch the
-window and the `gap` / `genomicSuperDups` tracks (through the cache), run the window
-and site filters, and write `results/*.tsv` — then diff those against the committed
-copies and report PASS/FAIL.
-
-That diff is the audit. If the committed numbers still fall out of the pipeline —
-the two-tier candidate counts, the 257→187 window scan, the two top-ranked variants —
-then every claim in the #14 provenance holds. If they don't, it stops and shows what
-moved, and nothing downstream should be trusted until that is explained.
-
-There is no separate source-verification step: re-deriving the numbers already
-exercises the fetch, and the sources are version-pinned (see the top of this README),
-so a source that rots or changes shape makes the fetch *raise*, not lie. An earlier
-scratch `verify-sources` command has been removed — reproducing the numbers subsumes
-it.
-
-## Status
-
-Rebuilt in phases from the scratch scripts in `analysis-salvage/` (see the NOTE
-there for what those did and why they needed replacing).
-
-| phase | scope | state |
-|---|---|---|
-| 1 | primary-source layer (`sources.py`) | written* |
-| 2 | site criteria as a real module; reproduce the two chosen variants | not started |
-| 3 | recreate the chr20-wide window scan, lost from an earlier session | not started |
-| 4 | `reproduce`: emit committed `results/` TSVs and diff against them | not started |
-| 5 | delete `analysis-salvage/`, comment outcome on #14 | not started |
-
-\* `sources.py` is written and offline-verified (imports, pure helpers), but its
-fetchers have **not** yet been exercised against live UCSC/NCBI responses — the
-`track()` shape-handling in particular is unvalidated. The scratch `verify-sources`
-command has already been removed; its job is subsumed by `reproduce`.
 
 ## Data sources
 
