@@ -45,8 +45,8 @@ expected call unambiguous.
 
 ### Window (chr20-wide scan, ~100 kb candidates)
 
-- no overlap with the `gap` track — no `N` runs
-- no overlap with `genomicSuperDups` — no ambiguous placement
+- no `gap` feature within 50 kb — no `N` runs
+- no `genomicSuperDups` feature within 10 kb — no ambiguous placement
 - no gene overlap — intergenic
 - no stretch ≥ 500 bp outside GIAB high-confidence intervals
 
