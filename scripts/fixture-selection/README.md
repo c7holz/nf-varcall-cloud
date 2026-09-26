@@ -37,7 +37,6 @@ Enough genomics to read the code; nothing more.
 | **homopolymer** | A run of one base (`AAAAA`). Aligners and callers slip inside them, making the exact variant coordinate unstable. |
 | **left-shifting** | A deletion inside a repeat can be written at several coordinates that all describe the same edit. Tools normalise differently, so the "expected" coordinate becomes ambiguous. Avoided by deleting a base that differs from both neighbours. |
 | **transversion** | A purine↔pyrimidine substitution (`T>A`) as opposed to the more common transition (`T>C`). Chosen because it is the substitution class least likely to be produced by a sequencing error, so a false positive is less plausible. |
-| **k-mer uniqueness** | Whether short subsequences of the window recur elsewhere in the genome. Another angle on "can reads from here be placed unambiguously". |
 
 ## Selection criteria
 
