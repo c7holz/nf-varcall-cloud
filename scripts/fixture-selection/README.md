@@ -48,8 +48,11 @@ expected call unambiguous.
 
 - no overlap with the `gap` track — no `N` runs
 - no overlap with `genomicSuperDups` — no ambiguous placement
-- high k-mer uniqueness
-- well covered by GIAB high-confidence intervals
+- no gene overlap — intergenic
+- no stretch ≥ 500 bp outside GIAB high-confidence intervals
+
+Of the windows that pass, the one with the lowest repeat fraction (share of
+soft-masked bases) is chosen.
 
 ### Site (within the chosen window)
 
