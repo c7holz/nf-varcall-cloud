@@ -81,6 +81,8 @@ verbatim under `cache/`, so once warmed a re-run is offline. The cache is not
 committed: it is large and re-fetchable. `results/` is: the TSVs every published
 number is read from.
 
+If a run fails repeatedly on the same window, delete `cache/` and re-run.
+
 ## Usage
 
 Run from this directory (`scripts/fixture-selection/`), with no dependencies beyond
