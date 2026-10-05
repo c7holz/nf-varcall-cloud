@@ -1,7 +1,7 @@
 # Provenance
 
 The reference window and the two planted variants were chosen by
-`scripts/fixture-selection/`; its README gives the criteria, and `results/` holds
+`tests/fixtures/synthetic/`; its README gives the criteria, and `results/` holds
 the scored candidates every number below is read from.
 
 | fixture | value | chosen as |

@@ -1,6 +1,6 @@
 """Offline unit tests for :mod:`fixtures.sources`.
 
-Run from ``scripts/fixture-selection/``::
+Run from ``tests/fixtures/synthetic/``::
 
     python3 -m unittest discover -v
 

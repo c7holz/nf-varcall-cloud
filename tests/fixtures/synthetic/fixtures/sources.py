@@ -51,7 +51,7 @@ RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 # is what rate limiters null-route first. Deliberately carries no contact address:
 # NCBI's guidelines suggest one, but that is personal data and this scan is far too
 # small to warrant it.
-USER_AGENT = "nf-varcall-cloud/fixture-selection"
+USER_AGENT = "nf-varcall-cloud/synthetic-fixtures"
 
 
 class SourceError(RuntimeError):

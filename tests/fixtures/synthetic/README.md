@@ -1,4 +1,4 @@
-# fixture-selection
+# synthetic
 
 Provenance scripts for the synthetic test fixtures (issue #14). They record **how**
 the reference window and the two planted variants were chosen.
@@ -85,7 +85,7 @@ If a run fails repeatedly on the same window, delete `cache/` and re-run.
 
 ## Usage
 
-Run from this directory (`scripts/fixture-selection/`), with no dependencies beyond
+Run from this directory (`tests/fixtures/synthetic/`), with no dependencies beyond
 the standard library:
 
 ```bash
