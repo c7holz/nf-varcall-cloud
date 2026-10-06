@@ -3,8 +3,7 @@
 Provenance scripts for the synthetic test fixtures (issue #14). They record **how**
 the reference window and the two planted variants were chosen.
 
-These scripts hit the network and **never run in CI**. Not to be confused with
-`scripts/make_test_data.sh`, which is hermetic and regenerates `tests/data/`.
+These scripts hit the network and **never run in CI**.
 
 ## The problem being solved
 
