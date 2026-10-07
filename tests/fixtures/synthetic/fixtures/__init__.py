@@ -1,7 +1,8 @@
-"""Provenance scripts for the #14 synthetic test fixtures.
+"""Provenance scripts and generator for the #14 synthetic test fixtures.
 
-One-off analysis: how the reference window and the two fixture variants were
-chosen. Hits the network, never runs in CI.
+How the reference window and the two fixture variants were chosen, and
+``fixtures.generate``, which writes the fixtures into ``tests/data/``. Hits the
+network, never runs in CI.
 """
 
 WINDOW_CHROM = "chr20"

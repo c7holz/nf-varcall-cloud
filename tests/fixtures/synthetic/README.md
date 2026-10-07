@@ -1,7 +1,8 @@
 # synthetic
 
-Provenance scripts for the synthetic test fixtures (issue #14). They record **how**
-the reference window and the two planted variants were chosen.
+Provenance scripts and generator for the synthetic test fixtures (issue #14). They
+record **how** the reference window and the two planted variants were chosen, and
+write the fixtures into `tests/data/`.
 
 These scripts hit the network and **never run in CI**.
 
@@ -71,6 +72,7 @@ fixtures/
   sources.py    the ONLY network boundary — UCSC + GIAB fetchers
   sites.py      site criteria and ranking
   window.py     chr20-wide window scan
+  generate.py   writes the fixtures into tests/data/
 cache/          fetched responses, gitignored
 results/        committed TSVs — the record
 ```
@@ -90,6 +92,7 @@ the standard library:
 ```bash
 python3 -m fixtures.sites
 python3 -m fixtures.window
+python3 -m fixtures.generate
 ```
 
 ## Data sources
