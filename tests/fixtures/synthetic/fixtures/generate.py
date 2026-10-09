@@ -1,5 +1,5 @@
 """Writes the synthetic test fixtures into ``tests/data/``: the reference window
-as ``ref.fasta``. The haplotype carrying the planted variants goes to ``build/``.
+as ``ref.fasta``. Intermediates (the alt haplotype, simulated reads) go to ``build/``.
 Run from ``tests/fixtures/synthetic/``::
 
     python3 -m fixtures.generate
@@ -7,6 +7,7 @@ Run from ``tests/fixtures/synthetic/``::
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -16,6 +17,16 @@ DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 BUILD_DIR = Path(__file__).resolve().parents[1] / "build"
 
 LINE_WIDTH = 60  # bases per FASTA sequence line
+
+# ART-MountRainier 2016.06.05 (quay.io/biocontainers/art:2016.06.05--h0704011_13)
+ART_IMAGE = "quay.io/biocontainers/art@sha256:18a9360667bb1f50e0368709efee3390e6ed733cf3c6eadd0f6ea441f143ff60"
+ART_ARGS = [
+    "-ss", "HS25",  # HiSeq 2500 quality profile
+    "-p", "-l", "150", "-m", "300", "-s", "30",  # paired 150 bp, fragment 300 ± 30
+    "-f", "25",  # coverage per haplotype; the two merge to 50×
+    "-rs", "14",  # seed
+    "-na",  # no alignment output
+]
 
 
 def fasta(name: str, dna: str) -> str:
@@ -40,6 +51,18 @@ def inject(dna: str, start: int, variants) -> str:
     return dna
 
 
+def simulate(haplotype: Path, prefix: Path) -> None:
+    """Paired reads from ``haplotype``, written to ``<prefix>1.fq`` and ``<prefix>2.fq``."""
+    # Mount tests/, which holds both data/ and fixtures/synthetic/build/.
+    root = DATA_DIR.parent
+    subprocess.run(
+        ["podman", "run", "--rm", "-v", f"{root}:/w:z", "-w", "/w", ART_IMAGE,
+         "art_illumina", *ART_ARGS,
+         "-i", str(haplotype.relative_to(root)), "-o", str(prefix.relative_to(root))],
+        check=True,
+    )
+
+
 def main() -> int:
     dna = sources.sequence(WINDOW_CHROM, WINDOW_START, WINDOW_END)
 
@@ -52,6 +75,9 @@ def main() -> int:
     out = BUILD_DIR / "alt.fasta"
     out.write_text(fasta(WINDOW_CHROM, alt))
     print(f"wrote {out.relative_to(DATA_DIR.parent.parent)} ({len(alt):,} bp)")
+
+    simulate(DATA_DIR / "ref.fasta", BUILD_DIR / "ref_")
+    print(f"wrote {(BUILD_DIR / 'ref_').relative_to(DATA_DIR.parent.parent)}{{1,2}}.fq")
     return 0
 
 
