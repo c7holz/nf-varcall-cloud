@@ -24,9 +24,9 @@ ART_ARGS = [
     "-ss", "HS25",  # HiSeq 2500 quality profile
     "-p", "-l", "150", "-m", "300", "-s", "30",  # paired 150 bp, fragment 300 ± 30
     "-f", "25",  # coverage per haplotype; the two merge to 50×
-    "-rs", "14",  # seed
     "-na",  # no alignment output
 ]
+SEEDS = {"ref": 14, "alt": 15}  # one per haplotype, so their reads don't share positions
 
 
 def fasta(name: str, dna: str) -> str:
@@ -51,13 +51,14 @@ def inject(dna: str, start: int, variants) -> str:
     return dna
 
 
-def simulate(haplotype: Path, prefix: Path) -> None:
+def simulate(haplotype: Path, prefix: Path, seed: int) -> None:
     """Paired reads from ``haplotype``, written to ``<prefix>1.fq`` and ``<prefix>2.fq``."""
     # Mount tests/, which holds both data/ and fixtures/synthetic/build/.
     root = DATA_DIR.parent
     subprocess.run(
         ["podman", "run", "--rm", "-v", f"{root}:/w:z", "-w", "/w", ART_IMAGE,
          "art_illumina", *ART_ARGS,
+         "-rs", str(seed),
          "-i", str(haplotype.relative_to(root)), "-o", str(prefix.relative_to(root))],
         check=True,
     )
@@ -76,8 +77,10 @@ def main() -> int:
     out.write_text(fasta(WINDOW_CHROM, alt))
     print(f"wrote {out.relative_to(DATA_DIR.parent.parent)} ({len(alt):,} bp)")
 
-    simulate(DATA_DIR / "ref.fasta", BUILD_DIR / "ref_")
-    print(f"wrote {(BUILD_DIR / 'ref_').relative_to(DATA_DIR.parent.parent)}{{1,2}}.fq")
+    for name, haplotype in [("ref", DATA_DIR / "ref.fasta"), ("alt", BUILD_DIR / "alt.fasta")]:
+        prefix = BUILD_DIR / f"{name}_"
+        simulate(haplotype, prefix, SEEDS[name])
+        print(f"wrote {prefix.relative_to(DATA_DIR.parent.parent)}{{1,2}}.fq")
     return 0
 
 
