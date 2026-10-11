@@ -51,14 +51,15 @@ def inject(dna: str, start: int, variants) -> str:
     return dna
 
 
-def simulate(haplotype: Path, prefix: Path, seed: int) -> None:
-    """Paired reads from ``haplotype``, written to ``<prefix>1.fq`` and ``<prefix>2.fq``."""
+def simulate(haplotype: Path, prefix: Path, seed: int, label: str) -> None:
+    """Paired reads from ``haplotype``, written to ``<prefix>1.fq`` and ``<prefix>2.fq``,
+    each read name carrying ``label``."""
     # Mount tests/, which holds both data/ and fixtures/synthetic/build/.
     root = DATA_DIR.parent
     subprocess.run(
         ["podman", "run", "--rm", "-v", f"{root}:/w:z", "-w", "/w", ART_IMAGE,
          "art_illumina", *ART_ARGS,
-         "-rs", str(seed),
+         "-rs", str(seed), "-d", f"{label}_",
          "-i", str(haplotype.relative_to(root)), "-o", str(prefix.relative_to(root))],
         check=True,
     )
@@ -79,7 +80,7 @@ def main() -> int:
 
     for name, haplotype in [("ref", DATA_DIR / "ref.fasta"), ("alt", BUILD_DIR / "alt.fasta")]:
         prefix = BUILD_DIR / f"{name}_"
-        simulate(haplotype, prefix, SEEDS[name])
+        simulate(haplotype, prefix, SEEDS[name], name)
         print(f"wrote {prefix.relative_to(DATA_DIR.parent.parent)}{{1,2}}.fq")
     return 0
 
