@@ -1,5 +1,6 @@
 """Writes the synthetic test fixtures into ``tests/data/``: the reference window
-as ``ref.fasta``. Intermediates (the alt haplotype, simulated reads) go to ``build/``.
+as ``ref.fasta``, and reads from both haplotypes as ``test_1.fastq.gz`` and
+``test_2.fastq.gz``. Intermediates (the alt haplotype, simulated reads) go to ``build/``.
 Run from ``tests/fixtures/synthetic/``::
 
     python3 -m fixtures.generate
@@ -7,6 +8,7 @@ Run from ``tests/fixtures/synthetic/``::
 
 from __future__ import annotations
 
+import gzip
 import subprocess
 import sys
 from pathlib import Path
@@ -65,6 +67,14 @@ def simulate(haplotype: Path, prefix: Path, seed: int, label: str) -> None:
     )
 
 
+def merge(parts: list[Path], out: Path) -> None:
+    """``parts`` concatenated in order, gzipped to ``out``; identical input gives
+    identical bytes."""
+    with gzip.GzipFile(out, "wb", mtime=0) as gz:
+        for part in parts:
+            gz.write(part.read_bytes())
+
+
 def main() -> int:
     dna = sources.sequence(WINDOW_CHROM, WINDOW_START, WINDOW_END)
 
@@ -82,6 +92,11 @@ def main() -> int:
         prefix = BUILD_DIR / f"{name}_"
         simulate(haplotype, prefix, SEEDS[name], name)
         print(f"wrote {prefix.relative_to(DATA_DIR.parent.parent)}{{1,2}}.fq")
+
+    for mate in (1, 2):
+        out = DATA_DIR / f"test_{mate}.fastq.gz"
+        merge([BUILD_DIR / f"ref_{mate}.fq", BUILD_DIR / f"alt_{mate}.fq"], out)
+        print(f"wrote {out.relative_to(DATA_DIR.parent.parent)}")
     return 0
 
 
