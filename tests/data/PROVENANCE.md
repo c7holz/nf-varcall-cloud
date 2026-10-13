@@ -1,5 +1,14 @@
 # Provenance
 
+`ref.fasta`, `test_1.fastq.gz` and `test_2.fastq.gz` are written by the
+generator in `tests/fixtures/synthetic/`; a re-run reproduces them byte for byte:
+
+    cd tests/fixtures/synthetic && python3 -m fixtures.generate
+
+The reads are ART-simulated pairs from two haplotypes, the reference window and
+a copy carrying both variants below, so each variant is heterozygous. Every read
+name carries its haplotype (`chr20-ref_…`, `chr20-alt_…`).
+
 The reference window and the two planted variants were chosen by
 `tests/fixtures/synthetic/`; its README gives the criteria, and `results/` holds
 the scored candidates every number below is read from.
