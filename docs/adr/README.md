@@ -10,3 +10,4 @@ otherwise it's a note, not an ADR.
 | 0003 | AWS Batch over EKS | Accepted |
 | 0004 | Reference index: expect pre-staged, build only on explicit opt-in | Accepted |
 | 0005 | Test fixtures: synthetic reads over subsampled real data | Accepted |
+| 0006 | Read simulator: ART over wgsim/dwgsim | Accepted |
