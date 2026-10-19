@@ -1,0 +1,6 @@
+# Fetched primary-source responses. Re-fetchable; the committed results/ TSVs
+# are the audit artifact, not this.
+cache/
+__pycache__/
+# Generator intermediates (ART input); the fixtures are what's committed.
+build/
