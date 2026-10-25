@@ -9,7 +9,7 @@ containers and elastically on AWS Batch. The point of this repo is not the analy
 cost-awareness** in pipeline execution.
 
 ## Constraints
-- Public data only, no patient data (CI on `nf-core/test-datasets`; cloud run on a
+- Public data only, no patient data (CI on synthetic fixtures, ADR 0005; cloud run on a
   downsampled GIAB sample, GRCh38).
 - Scope limited to a small region (gene panel / chr20) to keep runtime and cost minimal.
 - Built with a regulated-clinical lens (reproducibility, auditability) as the differentiator.
